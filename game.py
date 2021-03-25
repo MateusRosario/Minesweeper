@@ -90,15 +90,15 @@ class Minefield:
 
     def draw(self, screen, mouse_pos, mousedown_event):
         if self.state is self.STARTING:
-            self.start_screen(screen)
+            self.start_screen(screen, mousedown_event)
         elif self.state is self.PLAYING:
             self.playing(screen, mouse_pos, mousedown_event)
         elif self.state is self.LOST_SCREEN:
-            self.lost_screen(screen)
+            self.lost_screen(screen, mousedown_event)
         elif self.state is self.WIN_SCREEN:
-            self.win_screen(screen)
+            self.win_screen(screen, mousedown_event)
 
-    def start_screen(self, screen):
+    def start_screen(self, screen, mousedown_event):
         if self.countdown is None:
             self.countdown = 2 * FPS
         self.countdown -= 1
@@ -106,7 +106,7 @@ class Minefield:
         text_rect = text.get_rect()
         text_rect.center = (WIDTH/2, HEIGHT/2)
         screen.blit(text, text_rect)
-        if self.countdown == 0:
+        if self.countdown == 0 or (mousedown_event is not None and self.countdown < 2 * FPS - FPS):
             self.countdown = None
             self.start_tick = pg.time.get_ticks()
             self.state = self.PLAYING
@@ -146,7 +146,7 @@ class Minefield:
         coord_rect.center = (40, self.tile_size*self.size_y + self.row_gap*self.size_y + 30)
         screen.blit(coord, coord_rect)
 
-    def lost_screen(self, screen):
+    def lost_screen(self, screen, mousedown_event):
         if self.countdown is None:
             self.countdown = 5 * FPS
         self.countdown -= 1
@@ -154,10 +154,10 @@ class Minefield:
         text_rect = text.get_rect()
         text_rect.center = (WIDTH/2, HEIGHT/2)
         screen.blit(text, text_rect)
-        if self.countdown == 0:
+        if self.countdown == 0 or mousedown_event is not None:
             self.state = self.FINILIZED
 
-    def win_screen(self, screen):
+    def win_screen(self, screen, mousedown_event):
         if self.countdown is None:
             self.countdown = 5 * FPS
         self.countdown -= 1
@@ -173,17 +173,21 @@ class Minefield:
         text_rect = text3.get_rect()
         text_rect.center = (WIDTH/2, HEIGHT/2 + 80)
         screen.blit(text3, text_rect)
-        if self.countdown == 0:
+        if self.countdown == 0 or mousedown_event is not None:
             self.state = self.FINILIZED
 
     def show_blank_fields(self):
         bombs_found = 0
+        wrong_marked = False
         for line in self.campo:
             for tile in line:
                 #print('Coord:', x, y, '\n[', end='')
 
-                if tile.bomb and tile.flagged:
-                    bombs_found += 1
+                if tile.flagged:
+                    if tile.bomb:
+                        bombs_found += 1
+                    else:
+                        wrong_marked = True
 
                 if tile.revealed and tile.value == 0:
                     if tile.y != 0:
@@ -216,7 +220,7 @@ class Minefield:
                             self.campo[tile.x + 1][tile.y + 1].reveal_next()
                             #print(' (', x + 1, y + 1, '),', end='')
                     #print(' ]')
-        if bombs_found == self.num_bombs:
+        if bombs_found == self.num_bombs and not wrong_marked:
             self.final_tick = pg.time.get_ticks()
             self.state = self.WIN_SCREEN
 
@@ -315,6 +319,7 @@ class Teile:
             if rect.collidepoint(mouse_event.pos):
                 if mouse_event.button == 1:
                     self.revealed = True
+                    self.flagged = False
                     if self.bomb:
                         self.exploded = True
                     return True
