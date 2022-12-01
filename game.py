@@ -372,3 +372,4 @@ class Teile:
     def reveal_next(self):
         if not self.bomb:
             self.revealed = True
+            self.flagged = False
