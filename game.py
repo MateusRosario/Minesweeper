@@ -5,7 +5,8 @@ from point import Point
 import random
 
 MENU = 0
-GAME = 1
+MODE = 1
+GAME = 2
 
 
 class Game:
@@ -32,6 +33,8 @@ class Game:
                     event_mousedown = event
             if self.state == MENU:
                 self.start_screen(event_mousedown)
+            if self.state == MODE:
+                self.mode_screen(event_mousedown)
             if self.state == GAME:
                 self.game_screen(event_mousedown)
                 if self.minefield.state is Minefield.FINILIZED:
@@ -48,14 +51,42 @@ class Game:
         self.screen.fill(COLORS['BACKGROUND'])
         mouse = pg.mouse.get_pos()
 
-        if button_start.get_action(events_mouse):
-            self.state = GAME
-            self.minefield = Minefield(Point(10, 10), 9, 9, 10)
-
         button_start.draw(self.screen, mouse)
 
         self.screen.blit(text_credits, (WIDTH - 290, HEIGHT - 30))
         pg.display.update()
+
+        if button_start.get_action(events_mouse):
+            self.state = MODE
+
+    def mode_screen(self, events_mouse):
+        easy_button = Button(Point(SCREEN_SIZE[0]/2, 30 + 20), 200, 60, 'EASY MODE', COLORS['BUTTON_1'])
+        medium_button = Button(Point(SCREEN_SIZE[0]/2, 120 + 20), 200, 60, 'MEDIUM MODE', COLORS['BUTTON_1'])
+        hard_button = Button(Point(SCREEN_SIZE[0]/2, 210 + 20), 200, 60, 'HARD MODE', COLORS['BUTTON_1'])
+
+        self.screen.fill(COLORS['BACKGROUND'])
+        mouse = pg.mouse.get_pos()
+
+        easy_button.draw(self.screen, mouse)
+        medium_button.draw(self.screen, mouse)
+        hard_button.draw(self.screen, mouse)
+
+        pg.display.update()
+
+        if easy_button.get_action(events_mouse):
+            self.state = GAME
+            self.minefield = Minefield(Point(10, 10), 9, 9, 10)
+            self.screen = pg.display.set_mode(self.minefield.size_screen)
+
+        elif medium_button.get_action(events_mouse):
+            self.state = GAME
+            self.minefield = Minefield(Point(10, 10), 18, 18, 145)
+            self.screen = pg.display.set_mode(self.minefield.size_screen)
+
+        elif hard_button.get_action(events_mouse):
+            self.state = GAME
+            self.minefield = Minefield(Point(10, 10), 27, 27, 218)
+            self.screen = pg.display.set_mode(self.minefield.size_screen)
 
     def game_screen(self, event_mousedown):
         self.screen.fill(COLORS['BACKGROUND'])
@@ -75,18 +106,23 @@ class Minefield:
     column_gap = 10
     row_gap = 10
     text_color = (40, 40, 0)
+    text_size = 30
     state = STARTING
     countdown = None
     start_tick = None
     final_tick = None
+    bombs_flagged = 0
 
     def __init__(self, pos, size_x, size_y, num_bombs):
-        self.pos = pos
+        self.pos = Point(self.column_gap, self.row_gap)
         self.size_x = size_x
         self.size_y = size_y
         self.num_bombs = num_bombs
 
         self.campo = [[Teile(False, x, y) for y in range(size_y)] for x in range(size_x)]
+        self.tile_size = self.text_size + 10
+        self.bottom_space = self.row_gap + self.text_size
+        self.size_screen = (int(self.column_gap + (size_x*self.column_gap) + (self.tile_size*size_x)), int(self.row_gap + (size_y*self.row_gap) + (self.tile_size*size_y) + self.bottom_space))
 
     def draw(self, screen, mouse_pos, mousedown_event):
         if self.state is self.STARTING:
@@ -114,8 +150,6 @@ class Minefield:
     def playing(self, screen, mouse_pos, mousedown_event):
         pos = Point(self.pos.x, self.pos.y)
 
-        self.tile_size = (WIDTH - (self.size_x + 1)*self.column_gap) / self.size_x
-
         coord_hover = None
 
         if not self.is_first_click:
@@ -127,7 +161,7 @@ class Minefield:
                 if tile.get_action(tile_rect, mousedown_event) and self.is_first_click:
                     self.is_first_click = False
                     self.populate_field(tile)
-                text = pg.font.SysFont('arial', 30).render(tile.get_text(), True, self.text_color)
+                text = pg.font.SysFont('arial', self.text_size).render(tile.get_text(), True, self.text_color)
                 text_rect = text.get_rect()
                 text_rect.center = tile_rect.center
                 pg.draw.rect(screen, COLORS[tile.get_color(tile_rect, mouse_pos)], tile_rect)
@@ -141,10 +175,10 @@ class Minefield:
             pos.y = self.pos.y
             pos.x += self.tile_size + self.column_gap
 
-        coord = pg.font.SysFont('arial', 30).render(coord_hover, True, (140, 0, 0))
-        coord_rect = coord.get_rect()
-        coord_rect.center = (40, self.tile_size*self.size_y + self.row_gap*self.size_y + 30)
-        screen.blit(coord, coord_rect)
+        timer = pg.font.SysFont('arial', self.text_size).render(str((pg.time.get_ticks() - self.start_tick)/1000), True, (140, 0, 0))
+        timer_rect = timer.get_rect()
+        timer_rect.center = (self.column_gap + timer_rect.width/2, self.tile_size*self.size_y + self.row_gap*self.size_y + self.text_size)
+        screen.blit(timer, timer_rect)
 
     def lost_screen(self, screen, mousedown_event):
         if self.countdown is None:
@@ -220,6 +254,7 @@ class Minefield:
                             self.campo[tile.x + 1][tile.y + 1].reveal_next()
                             #print(' (', x + 1, y + 1, '),', end='')
                     #print(' ]')
+        self.bombs_flagged = bombs_found
         if bombs_found == self.num_bombs and not wrong_marked:
             self.final_tick = pg.time.get_ticks()
             self.state = self.WIN_SCREEN
